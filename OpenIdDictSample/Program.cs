@@ -44,13 +44,15 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
+    var key = Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SecretKey"]!);
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = false,
         ValidateAudience = false,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("your-secret-key"))
+        IssuerSigningKey = new SymmetricSecurityKey(key),
+        ValidAlgorithms = new[] { SecurityAlgorithms.HmacSha512 }
     };
 });
 
@@ -59,6 +61,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
     options.UseOpenIddict();
 });
+
 
 builder.Services.AddOpenIddict()
     .AddCore(options =>
@@ -71,17 +74,22 @@ builder.Services.AddOpenIddict()
         options.AllowClientCredentialsFlow()
             .AllowAuthorizationCodeFlow()
             .RequireProofKeyForCodeExchange()
-            .AllowRefreshTokenFlow()
-            .SetTokenEndpointUris("/connect/token")
-            .SetAuthorizationEndpointUris("/connect/authorize");
+            .AllowRefreshTokenFlow();
 
-        options.AddEphemeralEncryptionKey()
-        .AddEphemeralSigningKey();
+        options.SetAuthorizationEndpointUris("/connect/authorize")
+            .SetTokenEndpointUris("/api/connect/token");
+
+        var key = Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SecretKey"]!);
+        options.AddSigningKey(new SymmetricSecurityKey(key));
+
+        options.AddDevelopmentEncryptionCertificate()
+            .AddDevelopmentSigningCertificate()
+            .AddEphemeralEncryptionKey()
+            .AddEphemeralSigningKey();
 
         options.UseAspNetCore()
                .EnableTokenEndpointPassthrough()
-               .EnableAuthorizationEndpointPassthrough()
-               .EnableLogoutEndpointPassthrough();
+               .EnableAuthorizationEndpointPassthrough();
     })
     .AddValidation(options =>
     {
@@ -89,7 +97,7 @@ builder.Services.AddOpenIddict()
         options.UseAspNetCore();
     });
 
-builder.Services.AddHostedService<OpenIddictWorker>();
+builder.Services.AddHostedService<OpenIddictClientSeeder>();
 
 var app = builder.Build();
 

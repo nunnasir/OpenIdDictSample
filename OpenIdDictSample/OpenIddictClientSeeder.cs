@@ -3,13 +3,15 @@ using OpenIdDictSample.Models;
 
 namespace OpenIdDictSample;
 
-public class OpenIddictWorker : IHostedService
+public class OpenIddictClientSeeder : IHostedService
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly IConfiguration _configuration;
 
-    public OpenIddictWorker(IServiceProvider serviceProvider)
+    public OpenIddictClientSeeder(IServiceProvider serviceProvider, IConfiguration configuration)
     {
         _serviceProvider = serviceProvider;
+        _configuration = configuration;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -21,18 +23,29 @@ public class OpenIddictWorker : IHostedService
 
         var manager = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
 
-        if(await manager.FindByClientIdAsync("your-client-id") == null)
+        var clientSettings = _configuration.GetSection("OpenIddict:Clients:ClientApp");
+
+        var clientId = clientSettings["ClientId"]!;
+        var clientSecret = clientSettings["ClientSecret"]!;
+        var displayName = clientSettings["DisplayName"]!;
+
+        if (await manager.FindByClientIdAsync(clientId) == null)
         {
             await manager.CreateAsync(new OpenIddictApplicationDescriptor
             {
-                ClientId = "your-client-id",
-                ClientSecret = "your-client-secret",
-                DisplayName = "Your Application",
+                ClientId = clientId,
+                ClientSecret = clientSecret,
+                DisplayName = displayName,
                 Permissions =
                 {
                     OpenIddictConstants.Permissions.Endpoints.Token,
+                    OpenIddictConstants.Permissions.Endpoints.Introspection,
+
                     OpenIddictConstants.Permissions.GrantTypes.ClientCredentials,
-                    OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode
+                    OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
+
+                    OpenIddictConstants.Permissions.Scopes.Email,
+                    OpenIddictConstants.Permissions.Scopes.Profile
                 }
             });
         }
